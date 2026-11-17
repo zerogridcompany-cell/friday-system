@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.owner.mimi-shiken</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>/Users/owner/aim/mon_mimi.py</string>
+		<string>mon</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/owner/owner-kotoba/friday/mimi/shiken.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/owner/owner-kotoba/friday/mimi/shiken.out</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>5</integer>
+		<key>Minute</key>
+		<integer>20</integer>
+	</dict>
+</dict>
+</plist>

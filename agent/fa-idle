@@ -1,0 +1,36 @@
+#!/bin/zsh
+# 返事係（com.owner.friday-agent）を「仕事が0件の時だけ」入れ直す。使い方: nohup ~/bin/fa-idle [理由] >/dev/null 2>&1 &
+# 11/03 点検：前の /tmp/fa-idle.sh は「子プロセス0」だけを見とった＝画面待ち・ボタン実行の直前・返事を送る途中でも切れた
+#   （12:18 restarted(par) で「カードで払って」ボタンが途中で消え、25分後にもう一回実行された）
+# 0件の見方：①返事係が書く /tmp/friday-agent.busy（30秒以内・0件）②子プロセス0 ③6秒あけてもう一回同じ
+# busy が無い（古い返事係）時は agent.log の「取った」と「返した／err」の数で見る
+why=${1:-idle}; U=$(id -u); B=/tmp/friday-agent.busy; LOG=~/owner-kotoba/friday/agent.log
+logcount() {   # 最後の start から、取ったのに返してない数
+  /usr/bin/python3 - "$LOG" <<'E'
+import sys, re
+L = open(sys.argv[1], encoding="utf-8", errors="ignore").read().splitlines()
+i = max([k for k, l in enumerate(L) if "] start" in l] or [0])
+took, done = set(), set()
+for l in L[i:]:
+    m = re.search(r"\] 取った (\S+)", l)
+    if m: took.add(m.group(1))
+    m = re.search(r"\] (?:返した|err\(仕事\)) (\S+)", l)
+    if m: done.add(m.group(1))
+print(len(took - done))
+E
+}
+idle() {
+  local P n t
+  P=$(launchctl list | awk '$3=="com.owner.friday-agent"{print $1}')
+  [ -n "$P" ] && [ "$P" != "-" ] || return 1
+  [ "$(pgrep -P $P | wc -l | tr -d ' ')" = 0 ] || return 1
+  if [ -f $B ] && read n t < $B && [ $(( $(date +%s) - t )) -lt 30 ]; then [ "$n" = 0 ]; return; fi
+  [ "$(logcount)" = 0 ]
+}
+for i in {1..720}; do
+  if idle; then sleep 6; if idle; then
+    launchctl kickstart -k gui/$U/com.owner.friday-agent; echo "$(date) restarted($why)" >> /tmp/fa-restart.log; exit 0
+  fi; fi
+  sleep 5
+done
+echo "$(date) 1時間空かんかった($why)" >> /tmp/fa-restart.log; exit 1

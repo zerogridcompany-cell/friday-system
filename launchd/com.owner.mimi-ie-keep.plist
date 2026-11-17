@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.mimi-ie-keep</string>
+<key>ProgramArguments</key><array><string>/bin/zsh</string><string>/Users/owner/bin/mimi-ie-keep.sh</string></array>
+<key>StartInterval</key><integer>60</integer><key>RunAtLoad</key><true/>
+<key>StandardErrorPath</key><string>/Users/owner/owner-kotoba/friday/mimi/ie_keep.err</string>
+<key>StandardOutPath</key><string>/Users/owner/owner-kotoba/friday/mimi/ie_keep.err</string>
+</dict></plist>

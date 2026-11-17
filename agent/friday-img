@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""11/11 フライデーの絵の置き場。手元の絵（生成・拾った写真・図のスクショ）を LINE で送れる https に変える。
+使い方: friday-img <画像ファイル>  → 1行目に https の URL（30日で消える）。1MB を超える物・HEIC・WebP は JPEG に縮めてから置く。"""
+import sys, os, json, subprocess, tempfile, urllib.request
+d = json.load(open(os.path.expanduser('~/.config/line/friday.json')))
+src = sys.argv[1]
+ext = os.path.splitext(src)[1].lower()
+path = src
+if ext not in ('.jpg', '.jpeg', '.png') or os.path.getsize(src) > 950_000:
+    tmp = tempfile.mkdtemp(prefix='fimg_'); path = os.path.join(tmp, 'a.jpg')
+    for size, q in ((1600, 80), (1280, 75), (1024, 70), (800, 65)):
+        subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', str(q), '-Z', str(size), src, '--out', path], capture_output=True)
+        if os.path.exists(path) and os.path.getsize(path) <= 950_000: break
+ct = 'image/png' if path.lower().endswith('.png') else 'image/jpeg'
+req = urllib.request.Request('https://friday-line.example.workers.dev/img', data=open(path, 'rb').read(), method='POST',
+    headers={'content-type': ct, 'x-agent-key': d['agent_key'], 'x-agent': 'img', 'user-agent': 'friday-agent/1'})
+r = json.load(urllib.request.urlopen(req, timeout=30))
+if not r.get('ok'): sys.exit('置けんかった: ' + str(r))
+print(r['url'])

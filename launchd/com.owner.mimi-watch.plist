@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.mimi-watch</string>
+<key>EnvironmentVariables</key><dict><key>CLAUDE_BIN</key><string>/Users/owner/bin/claude-ssh</string></dict>
+<key>ProgramArguments</key><array><string>/usr/bin/python3</string><string>/Users/owner/bin/mimi-watch.py</string></array>
+<key>StartInterval</key><integer>60</integer>
+<key>StandardErrorPath</key><string>/Users/owner/owner-kotoba/friday/mimi/watch.err</string>
+</dict></plist>

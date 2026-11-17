@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""フライデー（LINE公式 @YOUR_BOT_ID）からオーナー本人に1通送る。
+使い方: friday-send "本文" [--image https://…jpg]...（11/10 写真を画像のまま送る・最大4枚・JPEG/PNG・1MB以下の https）[--link ラベル URL]... （リンクは押せるボタンになる・最大3つ）
+        [--ask "送って" "やる事の中身"]（10/31 押すと実行する「送って／やめて」のボタン・押されたら返事係が実行）
+鍵＝~/.config/line/friday.json（600）。月200通の無料枠を食う＝大事な提案だけ。"""
+import sys, json, os, urllib.request
+d = json.load(open(os.path.expanduser('~/.config/line/friday.json')))
+a = sys.argv[1:]; text = a[0] if a else ''; links = []; ask = None; images = []
+i = 1
+while i < len(a):
+    if a[i] == '--link' and i + 2 < len(a): links.append((a[i+1][:20], a[i+2])); i += 3
+    elif a[i] == '--image' and i + 1 < len(a): images.append(a[i+1]); i += 2
+    elif a[i] == '--ask' and i + 2 < len(a): ask = {"label": a[i+1], "action": a[i+2]}; i += 3
+    else: i += 1
+DRY = "--dry" in sys.argv   # 11/12 D：門だけ通して結果を出す（送らん・枠も /once も触らん）
+MOTO = a[a.index("--moto") + 1] if "--moto" in a and a.index("--moto") + 1 < len(a) else ""
+F_DIR = os.path.expanduser("~/owner-kotoba/friday")
+import re as _re, time as _time, hashlib as _hl
+# ---- 門A（11/12 D・manabi B🔁🔁「海外にいる間は時刻をその土地の時間だけで・日本時間の併記もせん。日本時間は日本側の締め切りの時だけ」）----
+_DEADLINE = _re.compile(r"締め?切|締切|期限|〆|日本の|日本側|日本国内|国内の|引き落と|振込|振り込|支払い?期日|提出|申請|役所|銀行|営業時間|受付時間|配達|再配達|日本で|日本に(?:いる|居る)")
+def jikoku_mon(t, china):
+    """海外にいる間：「（日本時間では19:00）」の併記を外す・「18:00（日本時間）」は現地時間に直す。日本の締め切りらしい時は触らず印だけ。返り値＝(新しい本文, 印のリスト)"""
+    if not china or "日本時間" not in t: return t, []
+    if _DEADLINE.search(t): return t, ["keep:日本の締め切り・日本側の時刻らしい＝そのまま"]
+    notes = []
+    def _conv(m):
+        h = int((int(m[1]) + _SA) % 24); notes.append(f"conv:{m[0]}→{h}:{m[2]}"); return f"{h}:{m[2]}"
+    t = _re.sub(r"(\d{1,2})[:：](\d{2})\s*[（(]\s*日本時間\s*[）)]", _conv, t)
+    def _drop(m): notes.append(f"drop:{m[0]}"); return ""
+    t = _re.sub(r"[（(]\s*日本時間(?:では|で|だと|は|：|:)?\s*[^（()）]{0,25}[）)]", _drop, t)
+    t = _re.sub(r"[、，,]\s*日本時間(?:では|で|だと)\s*\d{1,2}(?:[:：]\d{2}|時(?:\d{1,2}分|半)?)(?:です|でございます)?", _drop, t)
+    if "日本時間" in t: notes.append("mark:本文に「日本時間」が残っとる（言い方が型に合わん＝そのまま送る・ログで見る）")
+    return t, notes
+try:
+    import genchi as _gc; _CHINA = _gc.kaigai(); _SA = _gc.sa_jikan()   # 11/12 本人「いる場所の時刻に依存」＝中国に限らず時差のある土地全部
+except Exception: _CHINA, _SA = False, 0
+if text:
+    _t2, _nt = jikoku_mon(text, _CHINA)
+    if _nt:
+        try:
+            with open(f"{F_DIR}/jikoku_mon.log", "a") as _f: _f.write(json.dumps({"at": _time.strftime("%F %T"), "notes": _nt, "before": text[:300], "after": _t2[:300], "dry": DRY}, ensure_ascii=False) + "\n")
+        except Exception: pass
+        if DRY: print("時刻の門:", _nt)
+    text = _t2
+# ---- 門B（11/12 D・manabi B「知らせは送る前に、送った記録（同じ相手・同じ中身・同じ届いた時刻）と照らし、伝え済みなら送らん」）----
+# 11/12 1:14 前日11:47のホテルの連絡を、時刻の書き方だけ違う文で再送→枠を使い切った。数字を抜いた中身で20時間・--moto（元の連絡の印）で7日照らす
+LEDGER = f"{F_DIR}/send_ledger.jsonl"
+def _core(t):
+    t = _re.sub(r"📞\s*お電話がつながりませんでしたので、?\s*LINE\s*でお知らせいたします。?", "", t)
+    t = _re.sub(r"[0-9０-９]+", "", t)
+    return _re.sub(r"[\s　、。,.!！?？「」:：/／()（）・〜~\-ー]+", "", t)
+def _done(e): r = str(e.get("result", "")); return e.get("ok") or r == "sent" or "次の返事で伝える" in r
+_FIX = _re.compile(r"誤り|訂正|正しくは|変更|変わり|変わっ|遅れ|遅延|早ま|繰り上|繰り下|欠航|ゲート")   # 数字だけ直した知らせ（時刻の訂正・遅れ）は止めん
+def dup_mon(t, moto, now=None, rows=None):
+    """伝え済みなら理由の文字列、まだなら None。rows＝試験用（無ければ send_ledger と sent.jsonl を読む）"""
+    now = now or _time.time(); c = _core(t); hc = _hl.sha1(c.encode()).hexdigest()[:16]
+    if rows is None:
+        rows = []
+        for fn in (LEDGER, f"{F_DIR}/sent.jsonl"):
+            try: rows += [json.loads(l) for l in open(fn, encoding="utf-8").readlines()[-400:] if l.strip()]
+            except Exception: pass
+    for e in rows:
+        try: ts = e.get("ts") or _time.mktime(_time.strptime(e["at"][:16], "%Y-%m-%dT%H:%M"))
+        except Exception: continue
+        if not _done(e): continue
+        if moto and e.get("moto") == moto and now - ts < 7 * 86400: return f"同じ元の連絡（{moto[:60]}）は {e.get('at', '')} に伝え済み"
+        if len(c) >= 30 and not _FIX.search(t) and now - ts < 20 * 3600 and (e.get("core") or _hl.sha1(_core(e.get("text", "")).encode()).hexdigest()[:16]) == hc:
+            return f"数字だけ違う同じ中身を {e.get('at', '')} に伝え済み"
+    return None
+def _ledger(result, ok):
+    if DRY: return
+    try:
+        with open(LEDGER, "a") as _f: _f.write(json.dumps({"ts": _time.time(), "at": _time.strftime("%Y-%m-%dT%H:%M"), "core": _hl.sha1(_core(text).encode()).hexdigest()[:16],
+                                                          "moto": MOTO, "ok": ok, "result": result, "text": text[:400]}, ensure_ascii=False) + "\n")
+    except Exception: pass
+if text and "--force" not in sys.argv and "--reply" not in sys.argv:
+    _why = dup_mon(text, MOTO)
+    if _why:
+        try:
+            with open(f"{F_DIR}/dup_mon.log", "a") as _f: _f.write(json.dumps({"at": _time.strftime("%F %T"), "why": _why, "text": text[:200], "dry": DRY}, ensure_ascii=False) + "\n")
+        except Exception: pass
+        print("skip " + _why + "（同じ文はもう送った）"); sys.exit(0)
+# 11/14 1つの仕事に1人の門（本人「人格が2つある・1タスクに1人」）＝先回りの係の文だけ（返事係の中から＝FRIDAY_JOB・--reply・--isogi・--force は通す）
+if text and not os.environ.get("FRIDAY_JOB") and not any(x in sys.argv for x in ("--reply", "--isogi", "--force")):
+    try:
+        sys.path.insert(0, os.path.expanduser("~/bin")); import friday_hitori
+        _hw = friday_hitori.mon(text)
+    except Exception: _hw = None
+    if _hw:
+        _ledger(f"hitori:{_hw}", False); print("skip 1つの仕事に1人（" + _hw + "）"); sys.exit(0)
+if DRY: print("通る（送らん・--dry）:\n" + text); sys.exit(0)
+msg = {"type": "text", "text": text[:4900]}
+if links:
+    msg = {"type": "template", "altText": text[:390],
+           "template": {"type": "buttons", "text": text[:160],
+                        "actions": [{"type": "uri", "label": l, "uri": u} for l, u in links[:3]]}}
+if ask:
+    q = urllib.request.Request("https://friday-line.example.workers.dev/ask", data=json.dumps(ask).encode(), method="POST",
+        headers={"content-type": "application/json", "x-agent-key": d["agent_key"], "x-agent": "send", "user-agent": "friday-agent/1"})
+    msg["quickReply"] = json.load(urllib.request.urlopen(q, timeout=15))["quickReply"]
+# 11/03 オーナー「2でいきましょう」＝無料枠（月200通）のまま。最後の40通は返事（考えるのに時間がかかって push になった物）用に取っとく
+RESERVE = 40
+# 11/10 --reply＝オーナーの頼みへの返事の一部（写真など）は取っとき枠を使ってええ
+if "--reply" in sys.argv: RESERVE = 0
+# 11/11 本人「このメール（ホテルの忘れ物）はお前から気づいて連絡する形に・絶対」＝--isogi は取っとき枠も使う。届けられん時は todokanai.jsonl に残し、次の返事の頭で必ず伝える
+ISOGI = "--isogi" in sys.argv
+if ISOGI: RESERVE = 0
+def _todokanai(why):
+    try:
+        import datetime as _dt
+        with open(os.path.expanduser("~/owner-kotoba/friday/todokanai.jsonl"), "a") as _f:
+            _f.write(json.dumps({"at": _dt.datetime.now().strftime("%Y-%m-%dT%H:%M"), "text": text, "why": why, "shown": 0}, ensure_ascii=False) + "\n")
+    except Exception: pass
+try:
+    _H = {"Authorization": "Bearer " + d["access_token"]}
+    _g = lambda u: json.load(urllib.request.urlopen(urllib.request.Request("https://api.line.me/v2/bot/message/quota" + u, headers=_H), timeout=10))
+    _used = _g("/consumption").get("totalUsage", 0); _lim = _g("").get("value", 200)
+    if _lim and _used >= _lim - RESERVE:
+        _todokanai(f"枠 {_used}/{_lim}"); _ledger("todokanai", True)
+        print(f"skip 枠の残り{_lim-_used}通は返事用に取っとく（今月 {_used}/{_lim}）→ 次の返事で伝える"); sys.exit(0)
+except SystemExit: raise
+except Exception: pass
+# 11/03 オーナー「同じメッセージ送って勿体無い」＝同じ文は30時間に1回だけ（Air と mini 共通＝Cloudflare の /once で覚える）。--force で通す
+FORCE = "--force" in sys.argv
+if not FORCE and text:
+    import hashlib, re
+    core = re.sub(r"📞\s*お電話がつながりませんでしたので、?\s*LINE\s*でお知らせいたします。?", "", text)
+    core = re.sub(r"[\s　、。,.!！?？「」]+", "", core)
+    key = hashlib.sha1(core.encode()).hexdigest()[:16]
+    try:
+        q = urllib.request.Request(f"https://friday-line.example.workers.dev/once?job=dup:{key}",
+            headers={"x-agent-key": d["agent_key"], "x-agent": "send", "user-agent": "friday-agent/1"})
+        if json.load(urllib.request.urlopen(q, timeout=10)).get("run") is False:
+            print("skip 同じ文はもう送った"); sys.exit(0)
+    except SystemExit: raise
+    except Exception: pass
+# 11/10 本人「URLじゃなくて写真を送って」＝写真は画像のメッセージで（1回の push にまとめる＝1通分）
+msgs = ([msg] if text else []) + [{"type": "image", "originalContentUrl": u, "previewImageUrl": u} for u in images[:4]]
+if "quickReply" in msg and len(msgs) > 1: msgs[-1]["quickReply"] = msg.pop("quickReply")
+body = json.dumps({"to": d["owner_user_id"], "messages": msgs}).encode()
+r = urllib.request.Request("https://api.line.me/v2/bot/message/push", data=body, method="POST",
+    headers={"Content-Type": "application/json", "Authorization": "Bearer " + d["access_token"]})
+try:
+    res = json.load(urllib.request.urlopen(r, timeout=20)); print("sent"); _ledger("sent", True)
+    # 10/31 送った文を番号で覚える（引用返信された時にフライデーが中身を分かるように）
+    ids = [m["id"] for m in res.get("sentMessages", [])]
+    if ids:
+        try:
+            q = urllib.request.Request("https://friday-line.example.workers.dev/remember", data=json.dumps({"ids": ids, "text": text, "nimg": len(images[:4])}).encode(), method="POST",
+                headers={"content-type": "application/json", "x-agent-key": d["agent_key"], "x-agent": "send", "user-agent": "friday-agent/1"})
+            urllib.request.urlopen(q, timeout=10)
+        except Exception: pass
+except urllib.error.HTTPError as e:
+    if e.code == 429: _todokanai("LINE 429（月の上限）"); _ledger("todokanai-429", True)
+    print("error", e.code, e.read().decode()[:300]); sys.exit(1)
+except Exception as e:   # 11/14 夜 通信エラー・時間切れ＝「送った印」だけ残って30時間黙って消えとった→届かん物の箱へ（次の返事の頭で伝える）
+    _todokanai(f"通信エラー {type(e).__name__}"); _ledger("todokanai-net", True)
+    print("error net", type(e).__name__, str(e)[:120]); sys.exit(1)

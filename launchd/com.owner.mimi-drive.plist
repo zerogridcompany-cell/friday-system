@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.mimi-drive</string>
+<key>ProgramArguments</key><array><string>/bin/zsh</string><string>/Users/owner/bin/mimi-drive.sh</string></array>
+<key>EnvironmentVariables</key><dict><key>CLAUDE_BIN</key><string>/Users/owner/bin/claude-ssh</string><key>PATH</key><string>/Users/owner/.local/bin:/Users/owner/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+<key>StartInterval</key><integer>1800</integer>
+<key>StandardErrorPath</key><string>/Users/owner/owner-kotoba/friday/mimi/drive.err</string>
+<key>StandardOutPath</key><string>/Users/owner/owner-kotoba/friday/mimi/drive.err</string>
+</dict></plist>

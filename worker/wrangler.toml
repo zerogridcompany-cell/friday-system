@@ -1,0 +1,16 @@
+name = "friday-line"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "FRIDAY"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[[durable_objects.bindings]]
+name = "LOCK"
+class_name = "Lock"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Lock"]

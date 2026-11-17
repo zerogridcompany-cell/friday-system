@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.friday-tsuwa-once</string>
+<key>ProgramArguments</key><array><string>/usr/bin/python3</string><string>/Users/owner/friday-denwa/tsuwa.py</string><string>naosu</string><string>conv_YOUR_CONVERSATION_ID</string></array>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>/Users/owner/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+<key>WorkingDirectory</key><string>/Users/owner/friday-denwa</string>
+<key>RunAtLoad</key><true/>
+<key>StandardOutPath</key><string>/Users/owner/friday-denwa/tsuwa/naosu.log</string>
+<key>StandardErrorPath</key><string>/Users/owner/friday-denwa/tsuwa/naosu.log</string>
+</dict></plist>

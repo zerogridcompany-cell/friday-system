@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.mimi-matome</string>
+<key>ProgramArguments</key><array><string>/usr/bin/python3</string><string>/Users/owner/bin/mimi-matome.py</string></array>
+<key>EnvironmentVariables</key><dict><key>CLAUDE_BIN</key><string>/Users/owner/bin/claude-ssh</string><key>PATH</key><string>/Users/owner/.local/bin:/Users/owner/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+<key>StartInterval</key><integer>300</integer>
+<key>StandardErrorPath</key><string>/Users/owner/owner-kotoba/friday/mimi/matome.err</string>
+<key>StandardOutPath</key><string>/Users/owner/owner-kotoba/friday/mimi/matome.err</string>
+</dict></plist>

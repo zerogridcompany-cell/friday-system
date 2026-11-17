@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""11/14 夜 オーナー「Google カレンダーに入れる（期限がある物だけ・時間になったら iPhone に通知）」
+耳のまとめ係（mimi-matome）が拾ったオーナー様のやる事で、期限が分かる物だけを Google カレンダー（owner-account の主カレンダー）に入れる。
+使い方：mimi-cal-add '<JSON: [{"nani":..,"itsu_iso":..,"moto":..}]>'  記録＝mimi/cal.log
+同じやる事を2回入れん：入れた物は mimi/cal_done.json に覚える＋入れる前に同じ日の同じ題を探す。"""
+import json, os, sys, subprocess, datetime, re, hashlib
+HOME = os.path.expanduser("~"); D = HOME + "/owner-kotoba/friday/mimi"; DONE = D + "/cal_done.json"
+JST = datetime.timezone(datetime.timedelta(hours=9))
+# 11/14 夜 launchd の下ではカレンダーのログインが効かん事がある＝claude-ssh（自分への ssh 経由）を先に
+CLAUDE = os.environ.get("CLAUDE_BIN") or next((p for p in [HOME + "/bin/claude-ssh", HOME + "/.local/bin/claude", "/opt/homebrew/bin/claude"] if os.path.exists(p)), "claude")
+TOOLS = "mcp__claude_ai_Google_Calendar__search_events,mcp__claude_ai_Google_Calendar__list_events,mcp__claude_ai_Google_Calendar__create_event"
+def log(s):
+    with open(D + "/cal.log", "a") as f: f.write(datetime.datetime.now(JST).strftime("%m-%d %H:%M:%S ") + s + "\n")
+items = json.loads(sys.argv[1])
+try: done = json.load(open(DONE))
+except Exception: done = {}
+now = datetime.datetime.now(JST)
+for it in items:
+    nani, iso = (it.get("nani") or "").strip(), (it.get("itsu_iso") or "").strip()
+    if not nani or not re.match(r"^\d{4}-\d{2}-\d{2}", iso): continue
+    if iso[:10] < now.strftime("%Y-%m-%d"): log(f"過ぎた期限は入れん {iso} {nani}"); continue
+    k = hashlib.md5((iso[:10] + nani).encode()).hexdigest()[:12]
+    if k in done: continue
+    if len(iso) == 10 and iso == now.strftime("%Y-%m-%d") and now.hour >= 9:
+        # 11/14 夜 「今日中」は終日にすると朝9時の通知がもう過ぎとる＝今日の21時（過ぎとれば30分後）の予定にする
+        t = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        if now > t - datetime.timedelta(minutes=30): t = now + datetime.timedelta(minutes=30)
+        if t.date() == now.date(): iso = t.strftime("%Y-%m-%dT%H:%M")
+    jikan = len(iso) > 10
+    prompt = f"""Google カレンダー（owner@example.com の主カレンダー）に、オーナー様のやる事を1件だけ入れる。道具は search_events と create_event だけ使う。
+- 題：「✅ {nani[:40]}」
+- {'時刻：' + iso + ' から15分（日本時間 Asia/Tokyo）・通知はポップアップで始まりの時刻（0分前）と10分前' if jikan else '日付：' + iso[:10] + ' の終日の予定・通知はポップアップでその日の朝9時（終日の予定の通知＝前日から15時間前＝900分前）'}
+- 説明：「フライデーの耳が会話から拾ったやる事（{it.get('moto','')}）」
+- 入れる前に search_events でその日に同じ中身のやる事が既にあるか探す。あれば入れずに「ARU」とだけ書く。
+- 入れたら最後の1行に「OK <イベントのID>」、入れられんかったら「NG <理由>」。"""
+    try:
+        r = subprocess.run([CLAUDE, "-p", "--model", "opus", "--allowedTools", TOOLS, "--settings", '{"disableAllHooks":true}'],
+                           input=prompt, capture_output=True, text=True, timeout=240, cwd=HOME)
+        # 11/14 claude -p は CLAUDE.md のゲージ行を最後に付ける＝OK/ARU/NG で始まる最後の行を拾う
+        last = next((l.strip() for l in reversed(r.stdout.splitlines()) if l.strip().startswith(("OK", "ARU", "NG"))), "NG 返事の形が違う")
+    except Exception as e: last = f"NG {e}"
+    log(f"{last[:120]} ｜ {iso} {nani}")
+    if last.startswith(("OK", "ARU")):
+        done[k] = {"at": now.isoformat(timespec="seconds"), "nani": nani, "iso": iso, "r": last[:80]}
+        json.dump(done, open(DONE, "w"), ensure_ascii=False, indent=1)

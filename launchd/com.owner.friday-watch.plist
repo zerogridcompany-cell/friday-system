@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>CLAUDE_BIN</key>
+		<string>/Users/owner/bin/claude-ssh</string>
+	</dict>
+	<key>Label</key>
+	<string>com.owner.friday-watch</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>/Users/owner/bin/friday-watch.sh</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/owner/owner-kotoba/friday/watch.err</string>
+	<key>StartInterval</key>
+	<integer>300</integer>
+</dict>
+</plist>

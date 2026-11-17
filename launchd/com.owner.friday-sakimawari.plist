@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.owner.friday-sakimawari</string>
+<key>ProgramArguments</key><array><string>/usr/bin/python3</string><string>/Users/owner/bin/friday-sakimawari.py</string></array>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>/Users/owner/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/owner/bin</string></dict>
+<key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>40</integer></dict>
+<key>StandardOutPath</key><string>/Users/owner/owner-kotoba/friday/kotowari/err.log</string>
+<key>StandardErrorPath</key><string>/Users/owner/owner-kotoba/friday/kotowari/err.log</string>
+</dict></plist>
