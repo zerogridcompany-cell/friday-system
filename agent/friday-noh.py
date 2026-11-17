@@ -37,6 +37,10 @@ if _mn.strip(): out += ["", "## 🧠 フライデーの学び（毎晩の振り�
 m = rd(sp(f"{K}/master/MASTER.md", "MASTER.md")); i = m.find("## 幹"); j = m.find("## 枝")
 out += ["", m[i:j].strip() if i >= 0 else ""]
 
+# 持ち主の事はまだ空の所がある＝穴（聞き取りの質問）を脳に入れる。フライデーが返事の中で1問ずつ聞いて埋める（setup/friday-kikitori.py）
+_kk = sh([f"{H}/bin/friday-kikitori", "noh"]).strip()
+if _kk: out += ["", _kk]
+
 # 11/11 直し：master-add が「## 済」の下に足しとったため、11/03以降の新しい行が脳に入らんかった（旅先の買い物リスト見落とし）。
 # 済の上＋ファイル全体の直近14日の行を、新しい順で入れる。
 import re as _re, datetime as _dt
